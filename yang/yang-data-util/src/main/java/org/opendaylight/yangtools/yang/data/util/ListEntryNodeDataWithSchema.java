@@ -66,13 +66,13 @@ public class ListEntryNodeDataWithSchema extends CompositeNodeDataWithSchema {
             return;
         }
 
-        checkState(keyDef.size() == qnameToKeys.size(), "Input is missing some of the keys of %s",
-                getSchema().getQName());
-
         // Need to restore schema order...
         final Map<QName, Object> predicates = new LinkedHashMap<>();
-        for (QName qname : keyDef) {
-            predicates.put(qname, qnameToKeys.get(qname).getValue());
+        if (keyDef.size() == qnameToKeys.size())
+        {
+	        for (QName qname : keyDef) {
+	            predicates.put(qname, qnameToKeys.get(qname).getValue());
+	        }
         }
 
         writer.nextDataSchemaNode(getSchema());
