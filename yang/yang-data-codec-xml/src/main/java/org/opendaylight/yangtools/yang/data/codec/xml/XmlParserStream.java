@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -52,6 +53,8 @@ import org.opendaylight.yangtools.yang.data.util.ParserStreamUtils;
 import org.opendaylight.yangtools.yang.data.util.RpcAsContainer;
 import org.opendaylight.yangtools.yang.data.util.SimpleNodeDataWithSchema;
 import org.opendaylight.yangtools.yang.data.util.YangModeledAnyXmlNodeDataWithSchema;
+import org.opendaylight.yangtools.yang.model.api.ActionDefinition;
+import org.opendaylight.yangtools.yang.model.api.ActionNodeContainer;
 import org.opendaylight.yangtools.yang.model.api.AnyXmlSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.ContainerSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.DataSchemaNode;
@@ -323,7 +326,9 @@ public final class XmlParserStream implements Closeable, Flushable {
                     DataSchemaNode parentSchema = parent.getSchema();
 
                     final String parentSchemaName = parentSchema.getQName().getLocalName();
-                    if (parentSchemaName.equals(xmlElementName)
+                    // for the case which parentSchema is input/output from action, parentSchemaName won't equal with xmlElementName
+                    // but it still indicate the end
+                    if ((parentSchemaName.equals(xmlElementName) || parentSchemaName.equals("input") || parentSchemaName.equals("output"))
                             && in.getEventType() == XMLStreamConstants.END_ELEMENT) {
                         if (isNextEndDocument(in)) {
                             break;
@@ -354,15 +359,29 @@ public final class XmlParserStream implements Closeable, Flushable {
                     final Deque<DataSchemaNode> childDataSchemaNodes =
                             ParserStreamUtils.findSchemaNodeByNameAndNamespace(parentSchema, xmlElementName,
                                     new URI(xmlElementNamespace));
+                    final Deque<ActionDefinition> childActionDefinitions = 
+                    		ParserStreamUtils.findActionNodeByNameAndNamespace((ActionNodeContainer)parentSchema, xmlElementName,
+                            new URI(xmlElementNamespace));
 
-                    if (childDataSchemaNodes.isEmpty()) {
+                    if (childDataSchemaNodes.isEmpty() && childActionDefinitions.isEmpty()) {
                         checkState(!strictParsing, "Schema for node with name %s and namespace %s does not exist at %s",
                             xmlElementName, xmlElementNamespace, parentSchema.getPath());
                         skipUnknownNode(in);
                         continue;
                     }
-
-                    read(in, ((CompositeNodeDataWithSchema) parent).addChild(childDataSchemaNodes), rootElement);
+                    
+                    if (!childDataSchemaNodes.isEmpty())
+                    {	
+                    	read(in, ((CompositeNodeDataWithSchema) parent).addChild(childDataSchemaNodes), rootElement);
+                    }
+                    else
+                    {
+                    	// it means xmlElementName is an action in yang schema. Add all output children nodes to parent
+                    	Deque<DataSchemaNode> actionOutputNodes = new ArrayDeque<>();
+                    	actionOutputNodes.add(childActionDefinitions.getFirst().getOutput());
+                    	read(in, ((CompositeNodeDataWithSchema) parent).
+                    			addChild(actionOutputNodes), rootElement);
+                    }
                 }
                 break;
             case XMLStreamConstants.END_ELEMENT:

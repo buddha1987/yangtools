@@ -15,6 +15,8 @@ import java.util.Deque;
 import java.util.List;
 import org.opendaylight.yangtools.yang.common.QName;
 import org.opendaylight.yangtools.yang.common.Revision;
+import org.opendaylight.yangtools.yang.model.api.ActionDefinition;
+import org.opendaylight.yangtools.yang.model.api.ActionNodeContainer;
 import org.opendaylight.yangtools.yang.model.api.CaseSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.ChoiceSchemaNode;
 import org.opendaylight.yangtools.yang.model.api.DataNodeContainer;
@@ -74,4 +76,33 @@ public final class ParserStreamUtils {
         }
         return result;
     }
+    
+    /**
+     * Returns stack of ActionDefinition nodes via which it was necessary to pass to get schema node with specified
+     * {@code childName} and {@code namespace}.
+     * 
+    */
+    public static Deque<ActionDefinition> findActionNodeByNameAndNamespace(final ActionNodeContainer actionNode,
+            final String childName, final URI namespace) {
+
+    	final Deque<ActionDefinition> result = new ArrayDeque<>();
+    	ActionDefinition potentialChildNode = null;
+    	for (final ActionDefinition childNode : actionNode.getActions()) 
+    	{
+    		final QName childQName = childNode.getQName();
+	        if (childQName.getLocalName().equals(childName) && childQName.getNamespace().equals(namespace)) 
+	        {
+	            if (potentialChildNode == null || Revision.compare(childQName.getRevision(),
+	                potentialChildNode.getQName().getRevision()) > 0) {
+	                potentialChildNode = childNode;
+	            }
+	        }
+    	}
+        if (potentialChildNode != null) {
+            result.push(potentialChildNode);
+        }
+    	return result;
+    }
+    
+    
 }
